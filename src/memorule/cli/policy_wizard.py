@@ -25,6 +25,10 @@ _SECTIONS: dict[str, tuple[str, str]] = {
         "reconciliation",
         "How should conflicting memories be resolved?",
     ),
+    "extraction": (
+        "extraction",
+        "What specifics must be preserved when extracting memories? (optional, blank to skip)",
+    ),
     "retrieval": (
         "retrieval",
         "Which memories are relevant for a given query? (optional, blank to skip)",

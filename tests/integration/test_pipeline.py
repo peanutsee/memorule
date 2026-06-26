@@ -170,6 +170,22 @@ async def test_context_builder_and_session(llm, embeddings, vector_store, memory
     assert result.decision is MemoryDecision.DISCARD
 
 
+async def test_session_ingest_turn_splits_user_and_assistant(
+    llm, embeddings, vector_store, memory_store
+):
+    llm.set("Evaluate whether", {"decision": "discard", "reason": "q", "matched_policy": "x"})
+    engine = make_engine(llm, embeddings, vector_store, memory_store)
+    session = MemorySession(engine, ContextBuilder(engine.retriever))
+
+    await session.ingest_turn("I like chicken rice", "Here is a recipe for Hainanese chicken rice.")
+
+    assert llm.calls
+    policy_prompt = llm.calls[0]
+    assert "User (evaluate for long-term memory)" in policy_prompt
+    assert "I like chicken rice" in policy_prompt
+    assert "Assistant (context only" in policy_prompt
+
+
 async def test_context_builder_xml(llm, embeddings, vector_store, memory_store):
     m = Memory(id="m1", content="fact", confidence=0.9)
     await memory_store.save(m)

@@ -32,38 +32,44 @@ POLICY_YAML = """\
 
 memory_policy:
   create_when: |
-    Store memories when an interaction reveals
-    long-term user preferences,
-    ongoing projects,
-    recurring facts,
-    commitments,
-    relationships,
+    Store memories when an interaction reveals long-term user preferences
+    (including food, dishes, cuisines, sauces, condiments, and dietary restrictions),
+    ongoing projects, recurring facts, commitments, relationships,
     or information that will likely be useful in future conversations.
+    Store even brief or follow-up preference mentions (e.g. "With hot sauce!")
+    that refine earlier statements.
 
   discard_when: |
-    Ignore greetings,
-    temporary requests,
-    jokes,
-    casual conversation,
-    and one-off questions.
+    Ignore pure greetings with no substantive content, temporary one-off requests,
+    jokes, and generic small talk with no lasting user facts.
+    Do not discard multi-turn discussions where the user states likes, dislikes,
+    or refinements to earlier preferences.
+
+extraction:
+  rules: |
+    Preserve every specific entity the user stated: dish names, cuisines, cooking styles,
+    sauces, brands, and likes/dislikes. Never replace specifics with generic categories
+    (e.g. do not write "food preference" when the user said "chicken rice").
+    The summary must name the concrete subject (e.g. "Hainanese chicken rice with hot sauce"),
+    not a broad category.
 
 deduplication:
   rules: |
-    If two memories describe the same long-term fact, merge them.
+    If two memories describe the same long-term fact or the same topic, merge or enrich them.
+    Preferences about the same food, dish, or subject should be enriched into one memory.
     If the new interaction adds additional details, enrich the existing memory.
-    Preserve useful metadata.
-    Avoid duplicate entries.
+    Preserve useful metadata. Avoid duplicate entries.
 
 reconciliation:
   rules: |
     If new information contradicts an existing memory, prefer newer information.
-    Preserve previous values in version history.
-    Record when the change occurred.
+    When enriching, merged content and summary must retain all specifics from both sides.
+    Preserve previous values in version history. Record when the change occurred.
 
 # Optional. Remove if you do not want metadata enrichment.
 metadata_enrichment:
   rules: |
-    Tag memories with a short category and relevant keywords
+    Tag memories with specific entities (dishes, cuisines, ingredients) and relevant keywords
     that will make them easier to retrieve later.
 
 # Optional. Enables LLM re-ranking during retrieval.

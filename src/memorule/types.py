@@ -36,6 +36,8 @@ class Interaction(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     content: str
+    user_content: str | None = None
+    assistant_content: str | None = None
     role: str | None = None
     timestamp: datetime = Field(default_factory=_utcnow)
     source: str | None = None

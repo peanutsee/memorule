@@ -61,7 +61,13 @@ memorule policy wizard
 memorule policy wizard --section deduplication
 ```
 
-Or edit `memorule/policy/policy.yaml` directly.
+Or edit `memorule/policy/policy.yaml` directly. The scaffold includes `memory_policy`,
+`extraction`, `deduplication`, and `reconciliation` sections tuned for capturing specific
+preferences (not generic summaries).
+
+```bash
+memorule policy wizard --section extraction
+```
 
 ## 3. Configure memorule.yaml
 

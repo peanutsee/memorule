@@ -75,6 +75,7 @@ def test_wizard_interactive(tmp_path):
         "ignore chit chat",
         "merge dupes",
         "prefer newer",
+        "",  # skip extraction
         "",  # skip retrieval
     ])
     run_wizard(str(policy_path), prompt_fn=lambda _: next(answers))

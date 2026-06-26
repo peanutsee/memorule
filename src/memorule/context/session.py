@@ -33,10 +33,16 @@ class MemorySession:
     ) -> PipelineResult:
         if assistant_message is not None:
             content = f"User: {user_message}\nAssistant: {assistant_message}"
+            user_content = user_message
+            assistant_content = assistant_message
         else:
             content = user_message
+            user_content = user_message
+            assistant_content = None
         interaction = Interaction(
             content=content,
+            user_content=user_content,
+            assistant_content=assistant_content,
             source=source,
             metadata=metadata or {},
         )

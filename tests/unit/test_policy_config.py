@@ -54,6 +54,22 @@ def test_load_policy_invalid(tmp_path):
 def test_policy_default():
     policy = PolicyConfig.default()
     assert "long-term" in policy.memory_policy.create_when
+    assert policy.extraction is not None
+    assert "specific" in policy.extraction.rules.lower()
+
+
+def test_load_policy_with_extraction(tmp_path):
+    p = tmp_path / "policy.yaml"
+    p.write_text(
+        POLICY_YAML
+        + """
+extraction:
+  rules: "keep dish names"
+"""
+    )
+    policy = load_policy(p)
+    assert policy.extraction is not None
+    assert policy.extraction.rules == "keep dish names"
 
 
 def test_load_config(tmp_path):

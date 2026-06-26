@@ -28,6 +28,7 @@ class PersistenceStage(BaseStage):
             await ctx.memory_store.save(ctx.memory)
 
         if ctx.embedding is not None:
+            content_preview = (ctx.memory.content or "")[:200]
             await ctx.vector_store.upsert(
                 ctx.memory.id,
                 ctx.embedding,
@@ -35,6 +36,7 @@ class PersistenceStage(BaseStage):
                     "type": ctx.memory.type,
                     "confidence": ctx.memory.confidence,
                     "summary": ctx.memory.summary or "",
+                    "content": content_preview,
                 },
             )
 

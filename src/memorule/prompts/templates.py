@@ -12,6 +12,8 @@ from memorule.types import Interaction, Memory, SimilarMemory
 
 SYSTEM_PROMPT = (
     "You are a memory orchestration assistant. "
+    "Preserve every specific entity the user stated; do not generalize or replace "
+    "concrete details with broad categories. "
     "Respond with valid JSON only, no markdown fences or extra text."
 )
 
@@ -22,6 +24,29 @@ def coerce_to_str(value: Any) -> str:
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
     return str(value)
+
+
+def format_interaction_for_policy(interaction: Interaction) -> str:
+    """Format interaction for store/discard evaluation (user statements primary)."""
+    if interaction.user_content is not None:
+        parts = [f"User (evaluate for long-term memory):\n{interaction.user_content}"]
+        if interaction.assistant_content:
+            parts.append(
+                f"Assistant (context only — do not treat as user preference):\n"
+                f"{interaction.assistant_content}"
+            )
+        return "\n\n".join(parts)
+    return interaction.content
+
+
+def format_interaction_for_extraction(interaction: Interaction) -> str:
+    """Format interaction for memory extraction with labeled User/Assistant blocks."""
+    if interaction.user_content is not None:
+        parts = [f"User:\n{interaction.user_content}"]
+        if interaction.assistant_content:
+            parts.append(f"Assistant:\n{interaction.assistant_content}")
+        return "\n\n".join(parts)
+    return interaction.content
 
 
 class PolicyEvaluationResponse(BaseModel):
@@ -75,7 +100,14 @@ class RetrievalRerankResponse(BaseModel):
 
 
 def build_policy_evaluation_prompt(interaction: Interaction, policy: PolicyConfig) -> str:
+    formatted = format_interaction_for_policy(interaction)
     return f"""Evaluate whether this interaction should become a long-term memory.
+
+Focus on what the USER stated. Assistant text is context only and must not cause a discard
+when the user revealed a preference, fact, or other long-term information.
+
+Store brief or follow-up preference fragments (e.g. "With hot sauce!" refines an earlier
+food preference — store it).
 
 Create when:
 {policy.memory_policy.create_when}
@@ -83,25 +115,67 @@ Create when:
 Discard when:
 {policy.memory_policy.discard_when}
 
+Examples:
+- STORE: User says "I like chicken rice" or "With hot sauce!" after discussing food
+- DISCARD: User says "hi" or "thanks" with no lasting information
+
 Interaction:
-{interaction.content}
+{formatted}
 
 Respond with JSON:
 {{"decision": "store"|"discard", "reason": "...", "matched_policy": "..."}}"""
 
 
-def build_extraction_prompt(interaction: Interaction) -> str:
+def build_extraction_prompt(
+    interaction: Interaction,
+    policy: PolicyConfig,
+    candidates: list[SimilarMemory] | None = None,
+) -> str:
+    formatted = format_interaction_for_extraction(interaction)
+    extraction_rules = (
+        policy.extraction.rules
+        if policy.extraction is not None
+        else (
+            "Preserve every specific entity the user stated. Never replace specifics with "
+            "generic categories."
+        )
+    )
+
+    candidate_block = ""
+    if candidates:
+        lines = [
+            "- ID: {id}, Summary: {summary}, Content: {content}".format(
+                id=c.memory.id,
+                summary=c.memory.summary or "(none)",
+                content=c.memory.content,
+            )
+            for c in candidates
+        ]
+        candidate_block = f"""
+Related existing memories (if this turn refines one, merge specifics into content):
+{chr(10).join(lines)}
+"""
+
     return f"""Extract a structured memory from this interaction.
 
+What to store (from policy):
+{policy.memory_policy.create_when}
+
+Extraction rules:
+{extraction_rules}
+
+Field rules:
+- "content": complete faithful prose with ALL user-stated specifics (dishes, cuisines,
+  sauces, styles, likes/dislikes). Never use a nested JSON object or array.
+- "summary": specific retrieval label (max ~12 words) naming the concrete subject with key
+  nouns — NOT a broad category like "food preference".
+- Base the memory on USER statements; assistant text is context only.
+
+Example for User: "I like grilled chicken rice but hate soup" / "With hot sauce!":
+{{"type": "preference", "content": "User likes Hainanese chicken rice with hot sauce and dislikes soup", "summary": "Hainanese chicken rice with hot sauce", "confidence": 0.9}}
+{candidate_block}
 Interaction:
-{interaction.content}
-
-Rules:
-- "content" must be a single plain-text sentence describing the memory. Never use a nested JSON object or array for "content".
-- "summary" is a short label; structured attributes can go there or will be enriched later in metadata.
-
-Example for "I like grilled food but hate soup":
-{{"type": "preference", "content": "User likes grilled food and dislikes soup", "summary": "food preferences", "confidence": 0.9}}
+{formatted}
 
 Respond with JSON:
 {{"type": "preference|fact|project|commitment|relationship|other", "content": "...", "summary": "...", "confidence": 0.0-1.0}}"""
@@ -126,16 +200,21 @@ def build_deduplication_prompt(
     memory: Memory, candidates: list[SimilarMemory], rules: str
 ) -> str:
     candidate_text = "\n".join(
-        f"- ID: {c.memory.id}, Content: {c.memory.content}, Similarity: {c.similarity:.2f}"
+        f"- ID: {c.memory.id}, Summary: {c.memory.summary or '(none)'}, "
+        f"Content: {c.memory.content}, Similarity: {c.similarity:.2f}"
         for c in candidates
     ) or "No similar memories found."
     return f"""Determine whether this new memory is a duplicate of existing memories.
+
+Prefer "enrich" over "new" when memories cover the same topic (e.g. the same food or dish).
+When enriching, the later reconciliation step will merge specifics.
 
 Rules:
 {rules}
 
 New memory:
 Type: {memory.type}
+Summary: {memory.summary}
 Content: {memory.content}
 
 Existing candidates:
@@ -149,6 +228,9 @@ def build_reconciliation_prompt(
     new_memory: Memory, existing: Memory, rules: str
 ) -> str:
     return f"""Reconcile conflicting or overlapping memories according to the rules.
+
+When updating or versioning, merged content and summary must retain ALL specifics from
+both memories. Never replace a specific memory with a generic one.
 
 Rules:
 {rules}

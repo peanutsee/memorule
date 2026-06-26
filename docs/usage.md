@@ -94,17 +94,34 @@ async def handle_message(user_msg: str, chat_history: list[dict]) -> str:
 
 ### What `ingest_turn` sends to the pipeline
 
-`MemorySession.ingest_turn` wraps the user and assistant messages into one `Interaction`:
+`MemorySession.ingest_turn` wraps the user and assistant messages into one `Interaction` with
+three text fields:
+
+| Field | Content |
+|-------|---------|
+| `content` | Full transcript: `User: ...\nAssistant: ...` |
+| `user_content` | User message only |
+| `assistant_content` | Assistant message only (if provided) |
+
+Policy evaluation focuses on **`user_content`** — assistant recipes and long replies are
+context only and should not cause a discard when the user stated a preference.
+
+Example combined turn:
 
 ```
 User: I like chicken rice
 Assistant: Great choice! Hainanese chicken rice pairs well with chili sauce.
 ```
 
-Policy evaluation decides whether that combined turn is worth storing. Greetings and small talk
-are typically discarded; preferences and facts are stored.
+Follow-up turns like `"With hot sauce!"` are evaluated on the user line alone; memorule is
+configured to store brief preference refinements.
 
-For full control, use `session.ingest(Interaction(...))` directly.
+Before extraction, the pipeline embeds the user text and searches for related existing
+memories so incremental preferences (e.g. adding hot sauce to an earlier chicken-rice memory)
+can be merged into one specific memory instead of creating vague duplicates.
+
+For full control, use `session.ingest(Interaction(...))` directly and set `user_content` /
+`assistant_content` explicitly.
 
 ## Read path: retrieval and context
 
@@ -227,6 +244,22 @@ reconciliation:
     If new information contradicts an existing memory, prefer newer information.
 ```
 
+### Recommended: `extraction`
+
+Controls how much detail is preserved when a memory is created. Without this section, built-in
+defaults still apply, but explicit rules help for domain-specific agents (food, travel, etc.):
+
+```yaml
+extraction:
+  rules: |
+    Preserve dish names, cuisines, sauces, and likes/dislikes.
+    Never replace specifics with generic categories like "food preference".
+    Summaries must name the concrete subject (e.g. "Hainanese chicken rice with hot sauce").
+```
+
+Extraction also receives `create_when` from `memory_policy` and any related existing memories
+found via pre-extraction vector search.
+
 ### Optional sections
 
 ```yaml
@@ -245,8 +278,10 @@ When `retrieval.rules` is present, an LLM re-ranks candidates during retrieval.
 ### Tuning tips
 
 - Be specific in `create_when` / `discard_when` for your domain (e.g. food preferences, project facts).
-- Tight `discard_when` reduces noise from casual chat.
-- Deduplication rules matter once you have many memories about the same topic.
+- List follow-up preference fragments in `create_when` (e.g. `"With hot sauce!"` after food chat).
+- Narrow `discard_when` so preference-related multi-turn chat is not treated as casual conversation.
+- Use `extraction.rules` to forbid generic summaries — require concrete nouns in `summary`.
+- Deduplication rules matter once you have many memories about the same topic; prefer `enrich` over `new` for the same dish or subject.
 
 ## Hooks and custom stages
 
@@ -316,8 +351,15 @@ See [Setup — VectorStore](setup.md#vectorstore).
 ### Everything gets discarded
 
 - Review `memory_policy.discard_when` — it may be too broad.
+- When using `ingest_turn`, policy evaluation uses the **user message only**; long assistant replies no longer drown out preferences.
 - Check `ingest_turn` content — very short greetings are often correctly discarded.
 - Inspect `result.explanation` for the policy evaluation reason.
+
+### Memories are too vague (e.g. "food preference")
+
+- Add or tighten `extraction.rules` in `policy.yaml` to require specific dish/cuisine names.
+- Check `result.memory.content` and `result.memory.summary` in the explainability trace.
+- Vector store metadata now includes a `content` preview (first 200 chars) for easier debugging in Pinecone/Qdrant UIs.
 
 ### Provider JSON parse errors
 

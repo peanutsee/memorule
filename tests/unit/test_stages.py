@@ -76,6 +76,48 @@ async def test_memory_extraction_coerces_dict_content(
     assert ctx.memory.confidence == 0.85
 
 
+async def test_memory_extraction_pre_search_candidates(
+    llm, embeddings, vector_store, memory_store, policy
+):
+    existing = Memory(
+        id="m1",
+        content="User likes chicken rice",
+        summary="chicken rice",
+    )
+    await memory_store.save(existing)
+    await vector_store.upsert("m1", await embeddings.embed("chicken rice"), {})
+
+    captured: list[str] = []
+
+    class CapturingLLM:
+        async def complete(self, prompt: str, *, system: str | None = None) -> str:
+            captured.append(prompt)
+            return (
+                '{"type": "preference", "content": "User likes chicken rice with hot sauce", '
+                '"summary": "chicken rice with hot sauce", "confidence": 0.9}'
+            )
+
+    ctx = PipelineContext(
+        interaction=Interaction(
+            content="User: With hot sauce!\nAssistant: Nice!",
+            user_content="With hot sauce!",
+            assistant_content="Nice!",
+        ),
+        policy=policy,
+        llm=CapturingLLM(),
+        embeddings=embeddings,
+        vector_store=vector_store,
+        memory_store=memory_store,
+    )
+    ctx = await MemoryExtractionStage().run(ctx)
+    assert ctx.memory is not None
+    assert "hot sauce" in ctx.memory.content
+    assert captured
+    assert "Related existing memories" in captured[0]
+    assert "m1" in captured[0]
+    assert ctx.trace.steps[-1].details["pre_extraction_candidates"] == ["m1"]
+
+
 async def test_metadata_enrichment_skips_without_rules(
     llm, embeddings, vector_store, memory_store, policy
 ):
@@ -166,9 +208,11 @@ async def test_conflict_resolution_version(llm, embeddings, vector_store, memory
 
 async def test_persistence_saves_new(llm, embeddings, vector_store, memory_store, policy):
     ctx = make_ctx(llm, embeddings, vector_store, memory_store, policy)
-    ctx.memory = Memory(id="m1", content="x")
+    ctx.memory = Memory(id="m1", content="x" * 250, summary="s")
     ctx.embedding = await embeddings.embed("x")
     ctx.decision = MemoryDecision.STORE
     ctx = await PersistenceStage().run(ctx)
     assert "m1" in memory_store.memories
     assert "m1" in vector_store.vectors
+    assert vector_store.metadata["m1"]["content"] == "x" * 200
+    assert vector_store.metadata["m1"]["summary"] == "s"
