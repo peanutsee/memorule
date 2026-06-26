@@ -1,6 +1,6 @@
 [project]
 name = "memorule"
-version = "1.0.0-beta"
+version = "1.0.0-beta.1"
 description = "Rule-first, model-agnostic long-term memory orchestration for agentic systems"
 readme = "README.md"
 license = "Apache-2.0"
