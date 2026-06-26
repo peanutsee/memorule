@@ -206,6 +206,25 @@ async def test_conflict_resolution_version(llm, embeddings, vector_store, memory
     assert len(ctx.memory.metadata["version_history"]) == 1
 
 
+async def test_memory_extraction_without_type(
+    llm, embeddings, vector_store, memory_store, policy
+):
+    llm.set(
+        "Extract a structured",
+        {
+            "type": None,
+            "content": "User likes chicken rice",
+            "summary": "chicken rice",
+            "confidence": 0.9,
+        },
+    )
+    ctx = make_ctx(llm, embeddings, vector_store, memory_store, policy)
+    ctx = await MemoryExtractionStage().run(ctx)
+    assert ctx.memory is not None
+    assert ctx.memory.type is None
+    assert ctx.trace.steps[-1].reason == "Extracted memory"
+
+
 async def test_persistence_saves_new(llm, embeddings, vector_store, memory_store, policy):
     ctx = make_ctx(llm, embeddings, vector_store, memory_store, policy)
     ctx.memory = Memory(id="m1", content="x" * 250, summary="s")
@@ -216,3 +235,15 @@ async def test_persistence_saves_new(llm, embeddings, vector_store, memory_store
     assert "m1" in vector_store.vectors
     assert vector_store.metadata["m1"]["content"] == "x" * 200
     assert vector_store.metadata["m1"]["summary"] == "s"
+    assert "type" not in vector_store.metadata["m1"]
+
+
+async def test_persistence_includes_type_when_set(
+    llm, embeddings, vector_store, memory_store, policy
+):
+    ctx = make_ctx(llm, embeddings, vector_store, memory_store, policy)
+    ctx.memory = Memory(id="m2", content="x", summary="s", type="food")
+    ctx.embedding = await embeddings.embed("x")
+    ctx.decision = MemoryDecision.STORE
+    ctx = await PersistenceStage().run(ctx)
+    assert vector_store.metadata["m2"]["type"] == "food"

@@ -55,8 +55,14 @@ class PolicyEvaluationResponse(BaseModel):
     matched_policy: str
 
 
+def format_memory_type_line(memory_type: str | None) -> str:
+    if memory_type is None:
+        return ""
+    return f"Type: {memory_type}\n"
+
+
 class ExtractionResponse(BaseModel):
-    type: str
+    type: str | None = None
     content: str
     summary: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -106,8 +112,8 @@ def build_policy_evaluation_prompt(interaction: Interaction, policy: PolicyConfi
 Focus on what the USER stated. Assistant text is context only and must not cause a discard
 when the user revealed a preference, fact, or other long-term information.
 
-Store brief or follow-up preference fragments (e.g. "With hot sauce!" refines an earlier
-food preference — store it).
+Store brief follow-up fragments that refine earlier context (e.g. "Actually use Rust for
+the backend" after discussing a project — store it).
 
 Create when:
 {policy.memory_policy.create_when}
@@ -116,8 +122,8 @@ Discard when:
 {policy.memory_policy.discard_when}
 
 Examples:
-- STORE: User says "I like chicken rice" or "With hot sauce!" after discussing food
-- DISCARD: User says "hi" or "thanks" with no lasting information
+- STORE: User says "I prefer dark mode" or "Actually use Rust for the backend"
+- DISCARD: User says "hi" or "thanks!" with no lasting information
 
 Interaction:
 {formatted}
@@ -165,20 +171,22 @@ Extraction rules:
 {extraction_rules}
 
 Field rules:
-- "content": complete faithful prose with ALL user-stated specifics (dishes, cuisines,
-  sauces, styles, likes/dislikes). Never use a nested JSON object or array.
+- "content": complete faithful prose with ALL user-stated specifics (names, dates, numbers,
+  tools, projects, constraints). Never use a nested JSON object or array.
 - "summary": specific retrieval label (max ~12 words) naming the concrete subject with key
-  nouns — NOT a broad category like "food preference".
+  nouns — NOT a broad category like "user preference".
+- "type": optional short free-form label (1–3 words) only when it aids retrieval
+  (e.g. "work", "settings"); use null if a label adds no value. Not a fixed category taxonomy.
 - Base the memory on USER statements; assistant text is context only.
 
-Example for User: "I like grilled chicken rice but hate soup" / "With hot sauce!":
-{{"type": "preference", "content": "User likes Hainanese chicken rice with hot sauce and dislikes soup", "summary": "Hainanese chicken rice with hot sauce", "confidence": 0.9}}
+Example for User: "I prefer dark mode in all my apps" / "Actually use Rust for the backend":
+{{"type": "settings", "content": "User prefers dark mode in all apps and uses Rust for the backend", "summary": "dark mode and Rust backend", "confidence": 0.9}}
 {candidate_block}
 Interaction:
 {formatted}
 
 Respond with JSON:
-{{"type": "preference|fact|project|commitment|relationship|other", "content": "...", "summary": "...", "confidence": 0.0-1.0}}"""
+{{"type": "..." or null, "content": "...", "summary": "...", "confidence": 0.0-1.0}}"""
 
 
 def build_metadata_enrichment_prompt(memory: Memory, rules: str) -> str:
@@ -188,8 +196,7 @@ Rules:
 {rules}
 
 Memory:
-Type: {memory.type}
-Content: {memory.content}
+{format_memory_type_line(memory.type)}Content: {memory.content}
 Summary: {memory.summary}
 
 Respond with JSON:
@@ -206,15 +213,14 @@ def build_deduplication_prompt(
     ) or "No similar memories found."
     return f"""Determine whether this new memory is a duplicate of existing memories.
 
-Prefer "enrich" over "new" when memories cover the same topic (e.g. the same food or dish).
+Prefer "enrich" over "new" when memories cover the same topic or subject.
 When enriching, the later reconciliation step will merge specifics.
 
 Rules:
 {rules}
 
 New memory:
-Type: {memory.type}
-Summary: {memory.summary}
+{format_memory_type_line(memory.type)}Summary: {memory.summary}
 Content: {memory.content}
 
 Existing candidates:
@@ -252,7 +258,8 @@ def build_retrieval_rerank_prompt(
     query: str, memories: list[Memory], rules: str
 ) -> str:
     memory_text = "\n".join(
-        f"- ID: {m.id}, Type: {m.type}, Content: {m.content}, Confidence: {m.confidence}"
+        f"- ID: {m.id}, {f'Type: {m.type}, ' if m.type else ''}"
+        f"Content: {m.content}, Confidence: {m.confidence}"
         for m in memories
     )
     return f"""Rank and filter memories by relevance to the query.

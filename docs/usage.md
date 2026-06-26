@@ -201,7 +201,7 @@ print(result.explanation)   # human-readable trace
 When policy says **store**, the full pipeline runs:
 
 1. **policy_evaluation** — store or discard
-2. **memory_extraction** — type, content, summary, confidence
+2. **memory_extraction** — optional `type`, `content`, `summary`, `confidence`
 3. **metadata_enrichment** — optional tags (if configured in policy)
 4. **embedding_generation** — embed `memory.content`
 5. **similarity_search** — find nearby existing memories
@@ -221,6 +221,19 @@ print(result.explanation)
 ```
 
 Use this to debug why a turn was stored, merged, or discarded.
+
+### Memory fields
+
+Each stored memory has:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `content` | Yes | Full faithful statement of what to remember |
+| `summary` | Yes | Short specific retrieval label |
+| `confidence` | Yes | 0.0–1.0 extraction confidence |
+| `type` | No | Optional free-form label (e.g. `"food"`, `"work"`) — not a fixed category taxonomy |
+
+The LLM may omit `type` when a label adds no value. Meaning lives in `content` and `summary`.
 
 ## Policy
 
@@ -247,14 +260,15 @@ reconciliation:
 ### Recommended: `extraction`
 
 Controls how much detail is preserved when a memory is created. Without this section, built-in
-defaults still apply, but explicit rules help for domain-specific agents (food, travel, etc.):
+defaults still apply; add domain-specific rules when your agent needs them:
 
 ```yaml
 extraction:
   rules: |
-    Preserve dish names, cuisines, sauces, and likes/dislikes.
-    Never replace specifics with generic categories like "food preference".
-    Summaries must name the concrete subject (e.g. "Hainanese chicken rice with hot sauce").
+    Preserve names, dates, numbers, tools, projects, and constraints the user stated.
+    Never replace specifics with generic categories (e.g. "tech preference" when user said "Rust").
+    Summaries must name the concrete subject (e.g. "Rust backend for API project").
+    The type field is optional; use a short free-form label only when helpful, otherwise omit.
 ```
 
 Extraction also receives `create_when` from `memory_policy` and any related existing memories
@@ -277,11 +291,11 @@ When `retrieval.rules` is present, an LLM re-ranks candidates during retrieval.
 
 ### Tuning tips
 
-- Be specific in `create_when` / `discard_when` for your domain (e.g. food preferences, project facts).
-- List follow-up preference fragments in `create_when` (e.g. `"With hot sauce!"` after food chat).
-- Narrow `discard_when` so preference-related multi-turn chat is not treated as casual conversation.
+- Be specific in `create_when` / `discard_when` for your agent domain (e.g. coding prefs, support context).
+- List follow-up refinements in `create_when` (e.g. `"Actually use PostgreSQL instead"`).
+- Narrow `discard_when` so multi-turn context-building is not treated as casual conversation.
 - Use `extraction.rules` to forbid generic summaries — require concrete nouns in `summary`.
-- Deduplication rules matter once you have many memories about the same topic; prefer `enrich` over `new` for the same dish or subject.
+- Deduplication rules matter once you have many memories about the same topic; prefer `enrich` over `new` for the same subject.
 
 ## Hooks and custom stages
 
@@ -355,9 +369,9 @@ See [Setup — VectorStore](setup.md#vectorstore).
 - Check `ingest_turn` content — very short greetings are often correctly discarded.
 - Inspect `result.explanation` for the policy evaluation reason.
 
-### Memories are too vague (e.g. "food preference")
+### Memories are too vague (e.g. "user preference" instead of specifics)
 
-- Add or tighten `extraction.rules` in `policy.yaml` to require specific dish/cuisine names.
+- Add or tighten `extraction.rules` in `policy.yaml` to require concrete names, tools, or project details.
 - Check `result.memory.content` and `result.memory.summary` in the explainability trace.
 - Vector store metadata now includes a `content` preview (first 200 chars) for easier debugging in Pinecone/Qdrant UIs.
 

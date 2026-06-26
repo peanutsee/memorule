@@ -20,6 +20,13 @@ def test_init_scaffolds_artifacts(tmp_path):
     assert (target / "providers" / "stores.py.example").exists()
     assert (target / "hooks" / "example_auditor.py").exists()
 
+    from memorule.policy.loader import load_policy
+
+    policy = load_policy(target / "policy" / "policy.yaml")
+    assert policy.extraction is not None
+    assert "project" in policy.memory_policy.create_when.lower()
+    assert "chicken" not in policy.memory_policy.create_when.lower()
+
 
 def test_init_refuses_nonempty_without_force(tmp_path):
     target = tmp_path / "memorule"

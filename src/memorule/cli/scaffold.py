@@ -32,31 +32,30 @@ POLICY_YAML = """\
 
 memory_policy:
   create_when: |
-    Store memories when an interaction reveals long-term user preferences
-    (including food, dishes, cuisines, sauces, condiments, and dietary restrictions),
-    ongoing projects, recurring facts, commitments, relationships,
-    or information that will likely be useful in future conversations.
-    Store even brief or follow-up preference mentions (e.g. "With hot sauce!")
-    that refine earlier statements.
+    Store memories when the user reveals information that should persist across
+    future conversations: preferences, constraints, ongoing projects or tasks,
+    decisions, commitments, stable facts about themselves or their environment,
+    and relationships to people, tools, or systems. Store brief follow-ups that
+    refine earlier statements (e.g. "Actually use PostgreSQL instead").
 
   discard_when: |
-    Ignore pure greetings with no substantive content, temporary one-off requests,
-    jokes, and generic small talk with no lasting user facts.
-    Do not discard multi-turn discussions where the user states likes, dislikes,
-    or refinements to earlier preferences.
+    Ignore pure greetings or thanks with no new facts, one-off questions with no
+    lasting user information, jokes, and filler small talk. Do not discard turns
+    where the user adds or corrects long-term context.
 
 extraction:
   rules: |
-    Preserve every specific entity the user stated: dish names, cuisines, cooking styles,
-    sauces, brands, and likes/dislikes. Never replace specifics with generic categories
-    (e.g. do not write "food preference" when the user said "chicken rice").
-    The summary must name the concrete subject (e.g. "Hainanese chicken rice with hot sauce"),
+    Preserve every specific entity the user stated: names, dates, numbers, tools,
+    projects, and constraints. Never replace specifics with generic categories
+    (e.g. do not write "tech preference" when the user said "Rust").
+    The summary must name the concrete subject (e.g. "Rust backend for API project"),
     not a broad category.
+    The type field is optional; use a short free-form label only when helpful, otherwise omit.
 
 deduplication:
   rules: |
     If two memories describe the same long-term fact or the same topic, merge or enrich them.
-    Preferences about the same food, dish, or subject should be enriched into one memory.
+    Memories about the same subject should be enriched into one memory.
     If the new interaction adds additional details, enrich the existing memory.
     Preserve useful metadata. Avoid duplicate entries.
 
@@ -69,7 +68,7 @@ reconciliation:
 # Optional. Remove if you do not want metadata enrichment.
 metadata_enrichment:
   rules: |
-    Tag memories with specific entities (dishes, cuisines, ingredients) and relevant keywords
+    Tag memories with specific entities (people, projects, tools, and topics) and relevant keywords
     that will make them easier to retrieve later.
 
 # Optional. Enables LLM re-ranking during retrieval.

@@ -53,9 +53,12 @@ def test_load_policy_invalid(tmp_path):
 
 def test_policy_default():
     policy = PolicyConfig.default()
-    assert "long-term" in policy.memory_policy.create_when
+    assert "persist" in policy.memory_policy.create_when.lower()
     assert policy.extraction is not None
     assert "specific" in policy.extraction.rules.lower()
+    assert "project" in policy.memory_policy.create_when.lower()
+    assert "chicken" not in policy.memory_policy.create_when.lower()
+    assert "dish" not in (policy.extraction.rules.lower() if policy.extraction else "")
 
 
 def test_load_policy_with_extraction(tmp_path):

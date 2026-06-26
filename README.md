@@ -134,7 +134,7 @@ flowchart TB
 | Stage | LLM? | Responsibility |
 |-------|------|----------------|
 | Policy Evaluation | Yes | Apply `create_when` / `discard_when`; early exit on discard |
-| Memory Extraction | Yes | Produce structured `Memory` fields from the interaction |
+| Memory Extraction | Yes | Produce `Memory` fields (`content`, `summary`, optional `type`) from the interaction |
 | Metadata Enrichment | Yes (optional) | Add tags/categories to `memory.metadata` |
 | Embedding Generation | No | Call `EmbeddingModel.embed()` |
 | Similarity Search | No | Query `VectorStore`; hydrate via `MemoryStore` |
@@ -512,12 +512,18 @@ Decision trace:
 ```yaml
 memory_policy:
   create_when: |
-    Store memories when an interaction reveals long-term user preferences,
-    ongoing projects, recurring facts, commitments, relationships,
-    or information likely useful in future conversations.
+    Store memories when the user reveals information that should persist across
+    future conversations: preferences, constraints, ongoing projects or tasks,
+    decisions, commitments, and stable facts about themselves or their environment.
   discard_when: |
-    Ignore greetings, temporary requests, jokes, casual conversation,
-    and one-off questions.
+    Ignore pure greetings or thanks with no new facts, one-off questions with no
+    lasting user information, jokes, and filler small talk.
+
+extraction:
+  rules: |
+    Preserve names, dates, numbers, tools, projects, and constraints the user stated.
+    Never replace specifics with generic categories. Summaries must name the concrete subject.
+    The type field is optional.
 
 deduplication:
   rules: |

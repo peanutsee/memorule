@@ -73,6 +73,24 @@ def test_parse_extraction_preserves_string_content():
     assert resp.content == "User likes grilled food and dislikes soup"
 
 
+def test_parse_extraction_null_type():
+    raw = (
+        '{"type": null, "content": "User likes chicken rice", '
+        '"summary": "chicken rice", "confidence": 0.9}'
+    )
+    resp = parse_llm_response(raw, ExtractionResponse, stage="memory_extraction")
+    assert resp.type is None
+    assert resp.content == "User likes chicken rice"
+
+
+def test_parse_extraction_missing_type():
+    raw = (
+        '{"content": "User likes chicken rice", "summary": "chicken rice", "confidence": 0.9}'
+    )
+    resp = parse_llm_response(raw, ExtractionResponse, stage="memory_extraction")
+    assert resp.type is None
+
+
 def test_parse_reconciliation_coerces_dict_updated_content():
     raw = (
         '{"action": "update", "reason": "newer info", '

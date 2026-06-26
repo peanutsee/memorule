@@ -49,7 +49,11 @@ class MemoryExtractionStage(BaseStage):
         ctx.trace.add(
             self.name,
             decision="extracted",
-            reason=f"Extracted {response.type} memory",
+            reason=(
+                f"Extracted {response.type} memory"
+                if response.type
+                else "Extracted memory"
+            ),
             content=response.content,
             confidence=response.confidence,
             pre_extraction_candidates=[c.memory.id for c in candidates],

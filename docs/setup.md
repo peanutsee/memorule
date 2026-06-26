@@ -62,12 +62,22 @@ memorule policy wizard --section deduplication
 ```
 
 Or edit `memorule/policy/policy.yaml` directly. The scaffold includes `memory_policy`,
-`extraction`, `deduplication`, and `reconciliation` sections tuned for capturing specific
-preferences (not generic summaries).
+`extraction`, `deduplication`, and `reconciliation` sections tuned for a generic agent
+memory workflow (long-term user context, not session history).
 
 ```bash
 memorule policy wizard --section extraction
 ```
+
+### Minimum policy checklist
+
+For most agents, tuning these three sections is enough before going live:
+
+1. **`memory_policy.create_when`** — what lasting user context to store (preferences, projects, constraints)
+2. **`memory_policy.discard_when`** — what to ignore (greetings, one-off questions, filler)
+3. **`extraction.rules`** — preserve specifics in `content` / `summary`; `type` is optional
+
+Add domain-specific detail only when your agent needs it (e.g. food, travel, support tickets).
 
 ## 3. Configure memorule.yaml
 

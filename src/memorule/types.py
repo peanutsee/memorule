@@ -58,7 +58,7 @@ class Memory(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str = Field(default_factory=new_memory_id)
-    type: str = "fact"
+    type: str | None = None
     content: str
     summary: str | None = None
     created_at: datetime = Field(default_factory=_utcnow)

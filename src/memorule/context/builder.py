@@ -50,22 +50,30 @@ class ContextBuilder:
             return self._format_xml(memories)
         return self._format_plain(memories)
 
+    def _metadata_suffix(self, memory: Memory) -> str:
+        if not self.include_metadata:
+            return ""
+        if memory.type is not None:
+            return f" ({memory.type}, confidence: {memory.confidence})"
+        return f" (confidence: {memory.confidence})"
+
+    def _metadata_attrs(self, memory: Memory) -> str:
+        if not self.include_metadata:
+            return ""
+        if memory.type is not None:
+            return f' type="{memory.type}" confidence="{memory.confidence}"'
+        return f' confidence="{memory.confidence}"'
+
     def _format_markdown(self, memories: list[Memory]) -> str:
         lines = [self.header, ""]
         for m in memories:
-            suffix = ""
-            if self.include_metadata:
-                suffix = f" ({m.type}, confidence: {m.confidence})"
-            lines.append(f"- {m.content}{suffix}")
+            lines.append(f"- {m.content}{self._metadata_suffix(m)}")
         return "\n".join(lines)
 
     def _format_xml(self, memories: list[Memory]) -> str:
         lines = ["<memories>"]
         for m in memories:
-            attrs = ""
-            if self.include_metadata:
-                attrs = f' type="{m.type}" confidence="{m.confidence}"'
-            lines.append(f"  <memory{attrs}>{m.content}</memory>")
+            lines.append(f"  <memory{self._metadata_attrs(m)}>{m.content}</memory>")
         lines.append("</memories>")
         return "\n".join(lines)
 

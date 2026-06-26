@@ -56,12 +56,13 @@ def test_build_policy_evaluation_prompt_uses_user_focus():
 
 def test_build_extraction_prompt_includes_policy_and_rules():
     policy = PolicyConfig.default()
-    interaction = Interaction(content="I like chicken rice", user_content="I like chicken rice")
+    interaction = Interaction(content="I prefer dark mode", user_content="I prefer dark mode")
     prompt = build_extraction_prompt(interaction, policy)
     assert "Extraction rules:" in prompt
     assert policy.memory_policy.create_when[:40] in prompt
     assert "NOT a broad category" in prompt
-    assert "Hainanese chicken rice" in prompt
+    assert "dark mode" in prompt
+    assert "chicken" not in prompt.lower()
 
 
 def test_build_extraction_prompt_includes_pre_extraction_candidates():
@@ -81,3 +82,12 @@ def test_build_extraction_prompt_includes_pre_extraction_candidates():
     assert "Related existing memories" in prompt
     assert "m1" in prompt
     assert "chicken rice" in prompt
+
+
+def test_build_extraction_prompt_optional_type_not_taxonomy():
+    policy = PolicyConfig.default()
+    interaction = Interaction(content="I like chicken rice", user_content="I like chicken rice")
+    prompt = build_extraction_prompt(interaction, policy)
+    assert "preference|fact|project" not in prompt
+    assert "optional short free-form label" in prompt
+    assert '"type": "..." or null' in prompt

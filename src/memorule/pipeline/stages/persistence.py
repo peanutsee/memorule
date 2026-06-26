@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from memorule.pipeline.context import PipelineContext
 from memorule.pipeline.stage import BaseStage
 from memorule.types import MemoryDecision
@@ -29,15 +31,17 @@ class PersistenceStage(BaseStage):
 
         if ctx.embedding is not None:
             content_preview = (ctx.memory.content or "")[:200]
+            metadata: dict[str, Any] = {
+                "confidence": ctx.memory.confidence,
+                "summary": ctx.memory.summary or "",
+                "content": content_preview,
+            }
+            if ctx.memory.type is not None:
+                metadata["type"] = ctx.memory.type
             await ctx.vector_store.upsert(
                 ctx.memory.id,
                 ctx.embedding,
-                {
-                    "type": ctx.memory.type,
-                    "confidence": ctx.memory.confidence,
-                    "summary": ctx.memory.summary or "",
-                    "content": content_preview,
-                },
+                metadata,
             )
 
         ctx.trace.add(
