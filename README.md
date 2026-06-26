@@ -20,6 +20,27 @@ lifecycle around them.
 - **Transparent** — every pipeline run returns a human-readable explainability trace.
 - **Extensible** — every pipeline stage is replaceable; inject hooks at named points.
 
+## Demo
+
+A food-preference chat agent built with memorule remembers what the user likes across turns.
+After the user mentions chicken rice and hot sauce, the agent recalls that context in later replies.
+
+![Food Chat Agent — memorule remembers user food preferences across turns](docs/assets/food-chat-agent.png)
+
+The extracted memory is persisted to a vector store (Pinecone here) with structured metadata
+from the pipeline — type, summary, and confidence — ready for retrieval on future turns.
+
+![Pinecone search — stored preference memory with metadata](docs/assets/pinecone-memory-search.png)
+
+## Documentation
+
+Step-by-step guides for getting started and integrating memorule into your agent:
+
+| Guide | What you'll learn |
+|-------|-------------------|
+| [Setup](docs/setup.md) | Install, scaffold with `memorule init`, implement providers, validate config |
+| [Usage](docs/usage.md) | Agent read/write loop, policy tuning, context formatting, troubleshooting |
+
 ## Installation
 
 ### With uv (recommended)
@@ -173,6 +194,8 @@ src/memorule/
 ```
 
 ## Quickstart
+
+For the full walkthrough, see the [Setup guide](docs/setup.md). The short version:
 
 ### 1. Scaffold your memory layer
 
@@ -406,6 +429,9 @@ Read:
    search quality will suffer.
 
 ## Using memorule in your agent
+
+See the [Usage guide](docs/usage.md) for the complete agent loop, policy tuning, and troubleshooting.
+Minimal example:
 
 ```python
 from memorule import ContextBuilder, MemoryEngine, MemorySession, load_config, load_policy
