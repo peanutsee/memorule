@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from memorule.policy.config import PolicyConfig
 from memorule.types import Interaction, Memory, SimilarMemory
@@ -14,6 +14,14 @@ SYSTEM_PROMPT = (
     "You are a memory orchestration assistant. "
     "Respond with valid JSON only, no markdown fences or extra text."
 )
+
+
+def coerce_to_str(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
 
 
 class PolicyEvaluationResponse(BaseModel):
@@ -27,6 +35,11 @@ class ExtractionResponse(BaseModel):
     content: str
     summary: str
     confidence: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _coerce_content(cls, value: Any) -> str:
+        return coerce_to_str(value)
 
 
 class MetadataEnrichmentResponse(BaseModel):
@@ -47,6 +60,13 @@ class ReconciliationResponse(BaseModel):
     reason: str
     updated_content: str | None = None
     updated_summary: str | None = None
+
+    @field_validator("updated_content", mode="before")
+    @classmethod
+    def _coerce_updated_content(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        return coerce_to_str(value)
 
 
 class RetrievalRerankResponse(BaseModel):
@@ -75,6 +95,13 @@ def build_extraction_prompt(interaction: Interaction) -> str:
 
 Interaction:
 {interaction.content}
+
+Rules:
+- "content" must be a single plain-text sentence describing the memory. Never use a nested JSON object or array for "content".
+- "summary" is a short label; structured attributes can go there or will be enriched later in metadata.
+
+Example for "I like grilled food but hate soup":
+{{"type": "preference", "content": "User likes grilled food and dislikes soup", "summary": "food preferences", "confidence": 0.9}}
 
 Respond with JSON:
 {{"type": "preference|fact|project|commitment|relationship|other", "content": "...", "summary": "...", "confidence": 0.0-1.0}}"""

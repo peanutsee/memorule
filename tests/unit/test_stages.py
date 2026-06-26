@@ -56,6 +56,26 @@ async def test_memory_extraction(llm, embeddings, vector_store, memory_store, po
     assert ctx.memory.confidence == 0.9
 
 
+async def test_memory_extraction_coerces_dict_content(
+    llm, embeddings, vector_store, memory_store, policy
+):
+    llm.set(
+        "Extract a structured",
+        {
+            "type": "preference",
+            "content": {"likes": ["grilled"], "dislikes": ["soup"]},
+            "summary": "food",
+            "confidence": 0.85,
+        },
+    )
+    ctx = make_ctx(llm, embeddings, vector_store, memory_store, policy)
+    ctx = await MemoryExtractionStage().run(ctx)
+    assert ctx.memory is not None
+    assert ctx.memory.content == '{"likes": ["grilled"], "dislikes": ["soup"]}'
+    assert ctx.memory.type == "preference"
+    assert ctx.memory.confidence == 0.85
+
+
 async def test_metadata_enrichment_skips_without_rules(
     llm, embeddings, vector_store, memory_store, policy
 ):

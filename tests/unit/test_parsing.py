@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from memorule.exceptions import PolicyParseError
 from memorule.prompts.parsing import extract_json, parse_llm_response
+from memorule.prompts.templates import ExtractionResponse, ReconciliationResponse
 
 
 class _Resp(BaseModel):
@@ -49,3 +50,33 @@ def test_parse_invalid_json_raises():
 def test_parse_schema_mismatch_raises():
     with pytest.raises(PolicyParseError):
         parse_llm_response('{"action": "merge"}', _Resp, stage="t")
+
+
+def test_parse_extraction_coerces_dict_content():
+    raw = (
+        '{"type": "preference", "content": {"likes": ["grilled"], "dislikes": ["soup"]}, '
+        '"summary": "food", "confidence": 0.9}'
+    )
+    resp = parse_llm_response(raw, ExtractionResponse, stage="memory_extraction")
+    assert resp.type == "preference"
+    assert resp.content == '{"likes": ["grilled"], "dislikes": ["soup"]}'
+    assert resp.summary == "food"
+    assert resp.confidence == 0.9
+
+
+def test_parse_extraction_preserves_string_content():
+    raw = (
+        '{"type": "preference", "content": "User likes grilled food and dislikes soup", '
+        '"summary": "food", "confidence": 0.9}'
+    )
+    resp = parse_llm_response(raw, ExtractionResponse, stage="memory_extraction")
+    assert resp.content == "User likes grilled food and dislikes soup"
+
+
+def test_parse_reconciliation_coerces_dict_updated_content():
+    raw = (
+        '{"action": "update", "reason": "newer info", '
+        '"updated_content": {"likes": ["grilled"]}, "updated_summary": null}'
+    )
+    resp = parse_llm_response(raw, ReconciliationResponse, stage="conflict_resolution")
+    assert resp.updated_content == '{"likes": ["grilled"]}'
