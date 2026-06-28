@@ -5,7 +5,7 @@ Guides for installing, configuring, and integrating memorule into your agent.
 | Guide | Description |
 |-------|-------------|
 | [Setup](setup.md) | Install memorule, scaffold a project, implement providers, validate config |
-| [Usage](usage.md) | Wire the read/write loop, configure policy, retrieve memories, debug the pipeline |
+| [Usage](usage.md) | Wire the read/write loop, single- and multi-agent patterns, policy, debugging |
 
 ## Quick links
 

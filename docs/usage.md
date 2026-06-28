@@ -34,6 +34,187 @@ sequenceDiagram
     Mem-->>Agent: PipelineResult
 ```
 
+## Deployment patterns
+
+memorule fits both a **single specialized agent** and **multi-agent systems**. In both cases it
+is a shared long-term memory layer — not an agent framework. Your code still owns routing,
+tools, session history, and which LLM runs when.
+
+| | Single agent | Multi-agent |
+|---|--------------|-------------|
+| **Best for** | One chatbot or copilot with a focused domain | Orchestrated specialists working toward one goal |
+| **Integration** | One read/write loop per user turn | Orchestrator and/or each agent reads; controlled writes |
+| **Policy** | One `policy.yaml` for the agent's domain | Same policy or per-tenant; tune `create_when` for cross-agent facts |
+| **Scoping** | Optional `user_id` in metadata | Required: `user_id`, `project_id`, `goal_id`, etc. |
+| **Complexity** | Lowest — start here | You design who reads, who writes, and how stores are filtered |
+
+### Single specialized agent
+
+The simplest setup: one agent, one `MemoryEngine`, one read/write loop per turn.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Agent
+    participant Mem as Memorule
+    participant LLM
+
+    User->>Agent: message
+    Agent->>Mem: build_context(query)
+    Mem-->>Agent: MemoryContext
+    Agent->>LLM: system + memories + history + user
+    LLM-->>Agent: response
+    Agent->>User: response
+    Agent->>Mem: ingest_turn(user, assistant)
+```
+
+**When this is enough**
+
+- A domain-specific assistant (support, coding, food prefs, internal copilot)
+- One policy file describes what to remember for that domain
+- All turns flow through the same agent; no sub-agents or handoffs
+
+**Typical wiring**
+
+- One `MemorySession` (or direct `engine.process` / `build_context` calls)
+- Optional scope metadata on ingest for multi-user deployments:
+
+```python
+await session.ingest(
+    Interaction(
+        content=f"User: {user_msg}\nAssistant: {reply}",
+        user_content=user_msg,
+        assistant_content=reply,
+        metadata={"user_id": user_id},
+    )
+)
+```
+
+Your `VectorStore` and `MemoryStore` implementations should filter by `user_id` (or tenant)
+on search and save so users do not see each other's memories.
+
+The [Basic agent loop](#basic-agent-loop) below is the canonical single-agent integration.
+
+### Multi-agent systems
+
+In a multi-agent setup, several agents collaborate on a goal (research → plan → code → review).
+memorule does **not** choose which agent runs or pass messages between them. It provides
+**durable, shared context** that outlives any single agent invocation or task run.
+
+```mermaid
+flowchart TB
+    User --> Orchestrator
+    Orchestrator --> MemRead["memorule: build_context"]
+    MemRead --> Orchestrator
+    Orchestrator --> AgentA[Research agent]
+    Orchestrator --> AgentB[Code agent]
+    Orchestrator --> AgentC[Review agent]
+    AgentA --> Orchestrator
+    AgentB --> Orchestrator
+    AgentC --> Orchestrator
+    Orchestrator --> MemWrite["memorule: ingest durable facts"]
+```
+
+**What belongs in memorule vs your orchestrator**
+
+| Layer | Examples | Where |
+|-------|----------|--------|
+| Working / task state | Current plan, step 3 of 7, draft output | LangGraph, CrewAI, Redis, workflow state |
+| Long-term memory | User prefs, constraints, decisions, stable facts | memorule |
+
+Store facts that should survive **after the task finishes**. Do not ingest transient agent
+chatter ("thinking about step 2") unless your policy explicitly wants it.
+
+#### Pattern 1: Shared memory pool
+
+All agents read and write the same stores, partitioned by metadata you control:
+
+```python
+SCOPE = {"user_id": "u123", "goal_id": "api-migration"}
+
+# Any agent (or the orchestrator) after a useful finding
+await engine.process(Interaction(
+    content="Research agent: user prefers PostgreSQL over MySQL for the new API",
+    source="research_agent",
+    metadata={**SCOPE, "agent": "research"},
+))
+
+# Before any agent runs — inject into that agent's prompt
+memory_ctx = await ContextBuilder(engine.retriever).build(
+    "database preferences for migration"
+)
+# memory_ctx.formatted is ready for the system prompt
+# Filter by SCOPE in your VectorStore.search() implementation
+```
+
+Use `Interaction.source` and `metadata` to record **who wrote** the memory and **which scope**
+it belongs to. Tune `policy.yaml` so `create_when` captures user-facing facts and decisions,
+not internal coordination noise.
+
+**When to use:** specialists share one user goal and need the same long-term context.
+
+#### Pattern 2: Orchestrator-only writes
+
+Only the **orchestrator** calls `ingest_turn` / `process`. Sub-agents are stateless: the
+orchestrator injects retrieved memories into each agent's prompt and decides what becomes
+long-term memory after the run.
+
+```
+User → Orchestrator
+         ├─ build_context(current goal)
+         ├─ Research agent (memory block in prompt)
+         ├─ Code agent (same or filtered block)
+         └─ ingest only durable facts from the run
+```
+
+**When to use:** you want one gatekeeper for memory quality and avoid every sub-agent
+polluting the store.
+
+#### Pattern 3: Shared user facts + per-agent notes
+
+Two logical pools in the same physical stores:
+
+- **Shared** — user prefs, constraints, project decisions (`metadata.scope = "user"`)
+- **Specialist** — domain notes one agent needs (`metadata.agent = "legal"`)
+
+Each agent's retrieval passes different metadata filters in your store layer. Writes tag
+memories accordingly.
+
+**When to use:** all agents need the same user context, but some internal notes should not
+leak across roles.
+
+#### Scoping convention
+
+memorule does not ship first-class `user_id` / `agent_id` fields. Scoping is a **convention**
+you enforce in your store adapters:
+
+| Mechanism | Purpose |
+|-----------|---------|
+| `Interaction.metadata` | Copied into `Memory.metadata` at extraction |
+| `Interaction.source` / `Memory.source` | Which agent or channel wrote the memory |
+| `RetrievalQuery.metadata` | Filter hints for your `VectorStore.search()` |
+| Separate engines per tenant | Hard isolation — one `MemoryEngine` + store pair per customer |
+
+For production multi-agent systems, decide up front:
+
+1. **Scope key** — e.g. `user_id`, `org_id`, `project_id`, `goal_id`
+2. **Write policy** — orchestrator-only vs any agent may ingest
+3. **Read policy** — shared pool vs filtered per agent role
+4. **Conflict rules** — already in `policy.yaml` (prefer newer, merge same topic)
+
+#### Example: three agents, one goal
+
+Goal: *plan and implement an API migration*
+
+| Agent | Reads | Writes (via orchestrator) |
+|-------|-------|---------------------------|
+| Research | User constraints, past tech choices | "User chose PostgreSQL", "Legacy API uses REST" |
+| Architect | Same + summarized research | "Target: gRPC + Postgres" |
+| Coder | Architecture + coding prefs | "User wants pytest for tests" |
+
+All three call `build_context` with the same scope metadata before they run. Only **durable,
+cross-turn facts** are ingested — not "Agent B is on step 2".
+
 ## Basic agent loop
 
 The simplest integration uses `MemorySession`, which bundles retrieval and ingestion:

@@ -39,7 +39,7 @@ Step-by-step guides for getting started and integrating memorule into your agent
 | Guide | What you'll learn |
 |-------|-------------------|
 | [Setup](docs/setup.md) | Install, scaffold with `memorule init`, implement providers, validate config |
-| [Usage](docs/usage.md) | Agent read/write loop, policy tuning, context formatting, troubleshooting |
+| [Usage](docs/usage.md) | Single- and multi-agent patterns, read/write loop, policy tuning, troubleshooting |
 
 ## Installation
 
@@ -430,7 +430,8 @@ Read:
 
 ## Using memorule in your agent
 
-See the [Usage guide](docs/usage.md) for the complete agent loop, policy tuning, and troubleshooting.
+See the [Usage guide](docs/usage.md) for the complete agent loop, single- and multi-agent
+deployment patterns, policy tuning, and troubleshooting.
 Minimal example:
 
 ```python
