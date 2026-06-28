@@ -20,7 +20,13 @@ def test_init_scaffolds_artifacts(tmp_path):
     assert (target / "providers" / "stores.py.example").exists()
     assert (target / "hooks" / "example_auditor.py").exists()
 
+    from memorule.config import load_config
     from memorule.policy.loader import load_policy
+
+    config = load_config(target / "memorule.yaml")
+    assert "memory orchestration assistant" in config.prompts.system
+    assert "memory_extraction" in config.prompts.stages
+    assert config.prompts.structured_output.value == "auto"
 
     policy = load_policy(target / "policy" / "policy.yaml")
     assert policy.extraction is not None

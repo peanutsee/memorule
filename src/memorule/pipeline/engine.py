@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from pathlib import Path
 
+from memorule.config import PromptConfig
 from memorule.exceptions import StageExecutionError
 from memorule.pipeline.context import PipelineContext
 from memorule.pipeline.stage import PipelineStage
@@ -57,6 +58,7 @@ class MemoryEngine:
         vector_store: VectorStore,
         memory_store: MemoryStore,
         policy: PolicyConfig | str | Path,
+        prompts: PromptConfig | None = None,
         stages: list[PipelineStage] | None = None,
         hooks: dict[HookPoint, list[PipelineStage]] | None = None,
         retrieval_limit: int = 10,
@@ -66,6 +68,7 @@ class MemoryEngine:
         self.vector_store = vector_store
         self.memory_store = memory_store
         self.policy = policy if isinstance(policy, PolicyConfig) else load_policy(policy)
+        self.prompts = prompts or PromptConfig.default()
         self.hooks = hooks or {}
         self._stages = stages or self._default_stages(retrieval_limit)
         self.retriever = MemoryRetriever(
@@ -74,6 +77,7 @@ class MemoryEngine:
             memory_store=memory_store,
             llm=llm,
             policy=self.policy,
+            prompts=self.prompts,
         )
 
     @staticmethod
@@ -108,6 +112,7 @@ class MemoryEngine:
         ctx = PipelineContext(
             interaction=interaction,
             policy=self.policy,
+            prompts=self.prompts,
             llm=self.llm,
             embeddings=self.embeddings,
             vector_store=self.vector_store,

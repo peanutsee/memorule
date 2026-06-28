@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from memorule.config import PromptConfig
 from memorule.policy.config import PolicyConfig
 from memorule.protocols import EmbeddingModel, LanguageModel, MemoryStore, VectorStore
 from memorule.types import (
@@ -19,6 +20,7 @@ from memorule.types import (
 class PipelineContext:
     interaction: Interaction
     policy: PolicyConfig
+    prompts: PromptConfig
     llm: LanguageModel
     embeddings: EmbeddingModel
     vector_store: VectorStore

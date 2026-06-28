@@ -81,7 +81,7 @@ Add domain-specific detail only when your agent needs it (e.g. food, travel, sup
 
 ## 3. Configure memorule.yaml
 
-The scaffolded `memorule/memorule.yaml` controls retrieval defaults and context formatting:
+The scaffolded `memorule/memorule.yaml` controls retrieval defaults, context formatting, and LLM prompts:
 
 ```yaml
 policy_path: policy/policy.yaml
@@ -96,12 +96,31 @@ context:
   header: "## Relevant memories"
   include_metadata: false
 
+prompts:
+  system: |
+    You are a memory orchestration assistant for long-term agent memory.
+    Preserve every specific entity the user stated; do not generalize.
+
+  stages:
+    policy_evaluation: |
+      Decide whether this interaction should become a long-term memory.
+    memory_extraction: |
+      Extract a faithful memory from user statements.
+    # ... deduplication, conflict_resolution, retrieval_rerank, etc.
+
+  structured_output: auto   # auto | always | never
+
 providers:
   llm: providers.llm:MyLanguageModel
   embeddings: providers.embeddings:MyEmbeddingModel
   vector_store: providers.stores:MyVectorStore
   memory_store: providers.stores:MyMemoryStore
 ```
+
+**Prompts vs policy:** `policy.yaml` defines *what* to remember (create/discard rules, extraction fidelity).
+`memorule.yaml` `prompts` defines *how* the LLM is instructed (system persona and per-stage guidance).
+Pydantic response models define the output shape; JSON format hints are added automatically on the
+fallback path when your provider does not support native structured output.
 
 **Important:** `providers` paths are a **documented convention** for `memorule validate --check-providers`.
 memorule does not auto-import them. You construct provider instances in your application code and
@@ -115,15 +134,34 @@ memorule depends on four small `Protocol` interfaces. No base class is required 
 
 ### LanguageModel
 
-Used by policy-driven pipeline stages. Must return **raw text**; stages expect JSON for structured responses.
+Used by policy-driven pipeline stages. At minimum, implement `complete()` returning raw text.
+Optionally implement `complete_structured()` for native schema-enforced output when
+`prompts.structured_output` is `auto` or `always`.
 
 ```python
 # memorule/providers/llm.py
+from pydantic import BaseModel
+
 class MyLanguageModel:
     async def complete(self, prompt: str, *, system: str | None = None) -> str:
         # Call your LLM and return the response text.
         ...
+
+    async def complete_structured[T: BaseModel](
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        response_model: type[T],
+    ) -> T:
+        # Optional: OpenAI responses.parse, Anthropic structured outputs, etc.
+        # If unsupported, memorule falls back to complete() + JSON parse when mode is auto.
+        ...
 ```
+
+With `structured_output: auto` (the default), text-only providers still work: memorule appends a
+JSON schema hint derived from each stage's Pydantic model and parses the response. Set
+`structured_output: never` to force that path for debugging.
 
 ### EmbeddingModel
 

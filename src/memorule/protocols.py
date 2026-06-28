@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypeVar, runtime_checkable
+
+from pydantic import BaseModel
 
 from memorule.types import Memory
+
+T = TypeVar("T", bound=BaseModel)
 
 
 @runtime_checkable
 class LanguageModel(Protocol):
     async def complete(self, prompt: str, *, system: str | None = None) -> str: ...
+
+
+@runtime_checkable
+class StructuredLanguageModel(LanguageModel, Protocol):
+    async def complete_structured(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        response_model: type[T],
+    ) -> T: ...
 
 
 @runtime_checkable

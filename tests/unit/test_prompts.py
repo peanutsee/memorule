@@ -90,4 +90,4 @@ def test_build_extraction_prompt_optional_type_not_taxonomy():
     prompt = build_extraction_prompt(interaction, policy)
     assert "preference|fact|project" not in prompt
     assert "optional short free-form label" in prompt
-    assert '"type": "..." or null' in prompt
+    assert "Respond with JSON" not in prompt

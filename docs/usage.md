@@ -50,6 +50,7 @@ engine = MemoryEngine(
     vector_store=vector_store,
     memory_store=memory_store,
     policy=policy,
+    prompts=config.prompts,   # system prompts + structured_output mode
 )
 
 session = MemorySession(
@@ -288,6 +289,29 @@ retrieval:
 
 When `metadata_enrichment` is present, an LLM stage adds tags and metadata to `memory.metadata`.
 When `retrieval.rules` is present, an LLM re-ranks candidates during retrieval.
+
+## Prompts (memorule.yaml)
+
+System instructions for pipeline LLM stages live in `memorule.yaml`, separate from policy semantics:
+
+```yaml
+prompts:
+  system: |
+    You are a memory orchestration assistant ...
+  stages:
+    memory_extraction: |
+      Extract a faithful memory from user statements.
+  structured_output: auto   # auto | always | never
+```
+
+- **`prompts.system`** — global system prompt for all stages
+- **`prompts.stages.<stage_name>`** — optional per-stage suffix merged as `{system}\n\n{stage}`
+- **`structured_output`** — `auto` uses native structured output when your provider implements
+  `complete_structured()`; otherwise falls back to JSON parse with an auto-generated schema hint.
+  Use `never` to debug raw prompts; use `always` only when your provider supports structured output.
+
+Stage keys: `policy_evaluation`, `memory_extraction`, `metadata_enrichment`, `deduplication`,
+`conflict_resolution`, `retrieval_rerank`.
 
 ### Tuning tips
 

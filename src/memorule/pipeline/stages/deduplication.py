@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from memorule.llm.invoke import invoke_structured
 from memorule.pipeline.context import PipelineContext
 from memorule.pipeline.stage import BaseStage
-from memorule.prompts.parsing import parse_llm_response
 from memorule.prompts.templates import (
-    SYSTEM_PROMPT,
     DeduplicationResponse,
     build_deduplication_prompt,
 )
@@ -27,8 +26,15 @@ class DeduplicationStage(BaseStage):
 
         rules = ctx.policy.deduplication.rules
         prompt = build_deduplication_prompt(ctx.memory, ctx.candidates, rules)
-        raw = await ctx.llm.complete(prompt, system=SYSTEM_PROMPT)
-        response = parse_llm_response(raw, DeduplicationResponse, stage=self.name)
+        system = ctx.prompts.resolve_system_prompt(self.name)
+        response = await invoke_structured(
+            ctx.llm,
+            prompt,
+            response_model=DeduplicationResponse,
+            system=system,
+            stage=self.name,
+            mode=ctx.prompts.structured_output,
+        )
 
         if response.action == "new":
             ctx.trace.add(self.name, decision="new", reason=response.reason)

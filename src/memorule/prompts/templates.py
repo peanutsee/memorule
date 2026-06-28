@@ -11,10 +11,9 @@ from memorule.policy.config import PolicyConfig
 from memorule.types import Interaction, Memory, SimilarMemory
 
 SYSTEM_PROMPT = (
-    "You are a memory orchestration assistant. "
+    "You are a memory orchestration assistant for long-term agent memory. "
     "Preserve every specific entity the user stated; do not generalize or replace "
-    "concrete details with broad categories. "
-    "Respond with valid JSON only, no markdown fences or extra text."
+    "concrete details with broad categories."
 )
 
 
@@ -126,10 +125,7 @@ Examples:
 - DISCARD: User says "hi" or "thanks!" with no lasting information
 
 Interaction:
-{formatted}
-
-Respond with JSON:
-{{"decision": "store"|"discard", "reason": "...", "matched_policy": "..."}}"""
+{formatted}"""
 
 
 def build_extraction_prompt(
@@ -180,13 +176,10 @@ Field rules:
 - Base the memory on USER statements; assistant text is context only.
 
 Example for User: "I prefer dark mode in all my apps" / "Actually use Rust for the backend":
-{{"type": "settings", "content": "User prefers dark mode in all apps and uses Rust for the backend", "summary": "dark mode and Rust backend", "confidence": 0.9}}
+User prefers dark mode in all apps and uses Rust for the backend (dark mode and Rust backend).
 {candidate_block}
 Interaction:
-{formatted}
-
-Respond with JSON:
-{{"type": "..." or null, "content": "...", "summary": "...", "confidence": 0.0-1.0}}"""
+{formatted}"""
 
 
 def build_metadata_enrichment_prompt(memory: Memory, rules: str) -> str:
@@ -197,10 +190,7 @@ Rules:
 
 Memory:
 {format_memory_type_line(memory.type)}Content: {memory.content}
-Summary: {memory.summary}
-
-Respond with JSON:
-{{"tags": ["..."], "category": "...", "metadata": {{}}, "reason": "..."}}"""
+Summary: {memory.summary}"""
 
 
 def build_deduplication_prompt(
@@ -224,10 +214,7 @@ New memory:
 Content: {memory.content}
 
 Existing candidates:
-{candidate_text}
-
-Respond with JSON:
-{{"action": "new"|"merge"|"enrich", "target_memory_id": "..." or null, "reason": "..."}}"""
+{candidate_text}"""
 
 
 def build_reconciliation_prompt(
@@ -248,10 +235,7 @@ Summary: {new_memory.summary}
 Existing memory (ID: {existing.id}):
 Content: {existing.content}
 Summary: {existing.summary}
-Version: {existing.version}
-
-Respond with JSON:
-{{"action": "update"|"version"|"keep_existing", "reason": "...", "updated_content": "..." or null, "updated_summary": "..." or null}}"""
+Version: {existing.version}"""
 
 
 def build_retrieval_rerank_prompt(
@@ -271,10 +255,7 @@ Query:
 {query}
 
 Candidate memories:
-{memory_text}
-
-Respond with JSON:
-{{"memory_ids": ["id1", "id2", ...], "reason": "..."}}"""
+{memory_text}"""
 
 
 def serialize_memories(memories: list[Memory]) -> str:

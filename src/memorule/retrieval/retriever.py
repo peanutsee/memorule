@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from memorule.config import PromptConfig
+from memorule.llm.invoke import invoke_structured
 from memorule.policy.config import PolicyConfig
 from memorule.protocols import EmbeddingModel, LanguageModel, MemoryStore, VectorStore
-from memorule.prompts.parsing import parse_llm_response
 from memorule.prompts.templates import (
-    SYSTEM_PROMPT,
     RetrievalRerankResponse,
     build_retrieval_rerank_prompt,
 )
@@ -22,12 +22,14 @@ class MemoryRetriever:
         memory_store: MemoryStore,
         llm: LanguageModel | None = None,
         policy: PolicyConfig | None = None,
+        prompts: PromptConfig | None = None,
     ):
         self.embeddings = embeddings
         self.vector_store = vector_store
         self.memory_store = memory_store
         self.llm = llm
         self.policy = policy
+        self.prompts = prompts or PromptConfig.default()
 
     async def retrieve(self, query: RetrievalQuery) -> RetrievalResult:
         trace = ExplainabilityTrace()
@@ -61,8 +63,15 @@ class MemoryRetriever:
         assert self.policy is not None and self.policy.retrieval is not None
         assert self.llm is not None
         prompt = build_retrieval_rerank_prompt(query, memories, self.policy.retrieval.rules)
-        raw = await self.llm.complete(prompt, system=SYSTEM_PROMPT)
-        response = parse_llm_response(raw, RetrievalRerankResponse, stage="retrieval_rerank")
+        system = self.prompts.resolve_system_prompt("retrieval_rerank")
+        response = await invoke_structured(
+            self.llm,
+            prompt,
+            response_model=RetrievalRerankResponse,
+            system=system,
+            stage="retrieval_rerank",
+            mode=self.prompts.structured_output,
+        )
 
         by_id = {m.id: m for m in memories}
         reranked = [by_id[mid] for mid in response.memory_ids if mid in by_id]

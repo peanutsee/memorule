@@ -82,6 +82,7 @@ def test_load_config(tmp_path):
     assert config.retrieval.limit == 5
     assert config.context.format.value == "xml"
     assert config.context.max_memories == 4
+    assert config.prompts.structured_output.value == "auto"
 
 
 def test_resolve_policy_path(tmp_path):

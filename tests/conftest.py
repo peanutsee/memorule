@@ -17,16 +17,26 @@ class FakeLanguageModel:
     def __init__(self, responses: dict[str, dict] | None = None):
         self.responses = responses or {}
         self.calls: list[str] = []
+        self.system_calls: list[str | None] = []
 
     def set(self, key: str, response: dict) -> None:
         self.responses[key] = response
 
-    async def complete(self, prompt: str, *, system: str | None = None) -> str:
-        self.calls.append(prompt)
+    def _match(self, prompt: str) -> dict:
         for key, response in self.responses.items():
             if key in prompt:
-                return json.dumps(response)
+                return response
         raise AssertionError(f"No canned response matched prompt:\n{prompt[:200]}")
+
+    async def complete(self, prompt: str, *, system: str | None = None) -> str:
+        self.calls.append(prompt)
+        self.system_calls.append(system)
+        return json.dumps(self._match(prompt))
+
+    async def complete_structured(self, prompt: str, *, system: str | None = None, response_model):
+        self.calls.append(prompt)
+        self.system_calls.append(system)
+        return response_model.model_validate(self._match(prompt))
 
 
 class FakeEmbeddingModel:

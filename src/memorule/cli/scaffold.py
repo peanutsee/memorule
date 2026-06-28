@@ -18,6 +18,28 @@ context:
   header: "## Relevant memories"
   include_metadata: false   # include type/confidence in formatted output
 
+prompts:
+  system: |
+    You are a memory orchestration assistant for long-term agent memory.
+    Preserve every specific entity the user stated; do not generalize or replace
+    concrete details with broad categories.
+
+  stages:
+    policy_evaluation: |
+      Decide whether this interaction should become a long-term memory.
+    memory_extraction: |
+      Extract a faithful memory from user statements.
+    metadata_enrichment: |
+      Enrich the memory with retrieval-friendly metadata.
+    deduplication: |
+      Decide whether this memory duplicates an existing one.
+    conflict_resolution: |
+      Reconcile overlapping or conflicting memories.
+    retrieval_rerank: |
+      Rank memories by relevance to the query.
+
+  structured_output: auto   # auto | always | never
+
 # Provider paths are a documented convention only. Memorule does not
 # auto-load these; wire your implementations in your application code.
 providers:
@@ -82,17 +104,39 @@ LLM_PROVIDER = '''\
 """Example LanguageModel implementation.
 
 Rename this file to llm.py and implement against your provider.
-Memorule only requires the `complete` coroutine.
+Memorule requires `complete`; optionally implement `complete_structured`
+for native schema-enforced output when structured_output is auto or always.
 """
 
 from __future__ import annotations
+
+import json
+
+from pydantic import BaseModel
 
 
 class MyLanguageModel:
     async def complete(self, prompt: str, *, system: str | None = None) -> str:
         # Call your LLM provider here and return the raw text response.
-        # The framework expects JSON in the response for policy-driven stages.
         raise NotImplementedError("Implement MyLanguageModel.complete")
+
+    async def complete_structured[T: BaseModel](
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        response_model: type[T],
+    ) -> T:
+        # Optional: use your provider's native structured output API.
+        # OpenAI: client.responses.parse(..., text_format=response_model)
+        # Anthropic: tool_use / structured outputs
+        # Fallback: schema in prompt + complete + model_validate
+        schema = json.dumps(response_model.model_json_schema(), indent=2)
+        raw = await self.complete(
+            f"{prompt}\\n\\nRespond with JSON matching:\\n{schema}",
+            system=system,
+        )
+        return response_model.model_validate(json.loads(raw))
 '''
 
 EMBEDDINGS_PROVIDER = '''\

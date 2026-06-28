@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from memorule.config import PromptConfig
 from memorule.pipeline.context import PipelineContext
 from memorule.pipeline.stages import (
     ConflictResolutionStage,
@@ -21,11 +22,38 @@ def make_ctx(llm, embeddings, vector_store, memory_store, policy, content="hello
     return PipelineContext(
         interaction=Interaction(content=content),
         policy=policy,
+        prompts=PromptConfig.default(),
         llm=llm,
         embeddings=embeddings,
         vector_store=vector_store,
         memory_store=memory_store,
     )
+
+
+async def test_policy_evaluation_uses_configured_system_prompt(
+    llm, embeddings, vector_store, memory_store, policy
+):
+    from memorule.config import PromptConfig
+
+    llm.set("Evaluate whether", {"decision": "store", "reason": "pref", "matched_policy": "prefs"})
+    prompts = PromptConfig(
+        system="Custom global system",
+        stages={"policy_evaluation": "Custom stage guidance."},
+    )
+    ctx = PipelineContext(
+        interaction=Interaction(content="hello"),
+        policy=policy,
+        prompts=prompts,
+        llm=llm,
+        embeddings=embeddings,
+        vector_store=vector_store,
+        memory_store=memory_store,
+    )
+    await PolicyEvaluationStage().run(ctx)
+    assert llm.system_calls
+    system = llm.system_calls[0]
+    assert "Custom global system" in system
+    assert "Custom stage guidance." in system
 
 
 async def test_policy_evaluation_store(llm, embeddings, vector_store, memory_store, policy):
@@ -104,6 +132,7 @@ async def test_memory_extraction_pre_search_candidates(
             assistant_content="Nice!",
         ),
         policy=policy,
+        prompts=PromptConfig.default(),
         llm=CapturingLLM(),
         embeddings=embeddings,
         vector_store=vector_store,
