@@ -1,5 +1,7 @@
 """Memorule: rule-first, model-agnostic long-term memory orchestration."""
 
+from importlib.metadata import PackageNotFoundError, version
+
 from memorule.config import MemoruleConfig, PromptConfig, StructuredOutputMode, load_config
 from memorule.context import ContextBuilder, MemoryContext, MemorySession
 from memorule.exceptions import (
@@ -27,9 +29,13 @@ from memorule.types import (
     SimilarMemory,
 )
 
-__version__ = "0.1.0"
+try:
+    __version__ = version("memorule")
+except PackageNotFoundError:
+    __version__ = "0.0.0+dev"
 
 __all__ = [
+    "__version__",
     "BaseStage",
     "ConfigError",
     "ContextBuilder",

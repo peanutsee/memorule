@@ -40,6 +40,7 @@ Step-by-step guides for getting started and integrating memorule into your agent
 |-------|-------------------|
 | [Setup](docs/setup.md) | Install, scaffold with `memorule init`, implement providers, validate config |
 | [Usage](docs/usage.md) | Single- and multi-agent patterns, read/write loop, policy tuning, troubleshooting |
+| [Changelog](CHANGELOG.md) | Release history and migration notes |
 
 ## Installation
 

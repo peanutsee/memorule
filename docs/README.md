@@ -10,4 +10,5 @@ Guides for installing, configuring, and integrating memorule into your agent.
 ## Quick links
 
 - [Main README](../README.md) — overview, architecture, and API reference
+- [Changelog](../CHANGELOG.md) — release history
 - [Demo screenshots](../README.md#demo) — food chat agent example
